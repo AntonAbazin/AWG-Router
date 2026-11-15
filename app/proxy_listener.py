@@ -68,11 +68,9 @@ def _copy(source: socket.socket, destination: socket.socket, stopped: threading.
             data = source.recv(65536)
             if not data:
                 break
-            if not account(direction, 0):
-                break
-            destination.sendall(data)
             if not account(direction, len(data)):
                 break
+            destination.sendall(data)
     except (OSError, ssl.SSLError):
         pass
     finally:
@@ -88,12 +86,10 @@ def _copy_body(source, destination, stopped, account, remaining):
     try:
         while remaining and not stopped.is_set():
             data = source.recv(min(65536, remaining))
-            if not data or not account(0, 0):
+            if not data or not account(0, len(data)):
                 raise OSError("body interrupted")
             destination.sendall(data)
             remaining -= len(data)
-            if not account(0, len(data)):
-                raise OSError("quota exhausted")
     except (OSError, ssl.SSLError):
         stopped.set()
         try:
@@ -205,11 +201,9 @@ class _Handler(socketserver.BaseRequestHandler):
                 upstream = threading.Thread(target=_copy, args=(client, outbound, stopped, account, 0), daemon=True)
                 upstream.start()
             else:
-                if not account(0, 0):
-                    return
-                outbound.sendall(prefix)
                 if not account(0, len(prefix)):
                     return
+                outbound.sendall(prefix)
                 upstream = None
                 if body_len:
                     upstream = threading.Thread(target=_copy_body, args=(client, outbound, stopped, account, body_len),

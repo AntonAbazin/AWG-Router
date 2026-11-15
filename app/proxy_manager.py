@@ -22,9 +22,16 @@ class Manager:
     def _account(self, uid, direction, count):
         state = self.store.snapshot()
         up = next((u for u in state["upstreams"] if u["id"] == uid and u.get("enabled", True)), None)
-        if count:
-            self.engine.traffic.add_proxy(uid, direction, count)
-        return bool(up and not self.engine.over_quota(up))
+        if not up:
+            return False
+        # Проверка и резервирование байтов под одной блокировкой: встречное направление
+        # или другое соединение не обойдёт квоту до обновления счётчика.
+        with self.engine.traffic.lock:
+            if self.engine.over_quota(up):
+                return False
+            if count:
+                self.engine.traffic.add_proxy(uid, direction, count)
+            return True
 
     def _connect(self, uid, host, port):
         state = self.store.snapshot()
