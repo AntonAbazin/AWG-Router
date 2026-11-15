@@ -33,6 +33,7 @@ DEFAULT_STATE = {
         {"id": "ir", "name": "", "kind": "country", "source": "ir"},
     ],
     "clients": {},
+    "proxy_clients": [],
     "keys": {},
     "limits": {},     # срок и лимит трафика клиентов (limits.py)
     "shares": {},     # личные ссылки клиентов: токен → {pk, created}

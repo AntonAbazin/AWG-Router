@@ -24,6 +24,7 @@ from .traffic import month_key
 from .updates import UpdateChecker
 from .version import VERSION
 from . import engine as engine_mod
+from . import proxy_clients, proxy_manager
 from .engine import Engine
 from .i18n import Msg, MsgError, msg_of, to_json
 from .store import DEFAULT_STATE, ID_RE, Store, new_id
@@ -171,6 +172,7 @@ def _tls_alt() -> list[str]:
 
 
 tls = TLSManager(lambda: engine.srv.public_host(store.snapshot()), _tls_alt)
+proxies = proxy_manager.Manager(store, engine, tls)
 notifier = notify.Notifier(store, lambda st: tls.host() if tls.enabled else engine.srv.public_host(st))
 notifier.buttons_fn = tgbot.notify_buttons
 engine.notifier = notifier
@@ -914,6 +916,10 @@ def clean_backup_state(new: dict) -> dict:
                 fail("settings.telegram.via")
         c["via"] = via
         out["telegram"] = c
+    try:
+        proxy_clients.restore(st, new.get("proxy_clients", []))
+    except ValueError:
+        fail("proxy_clients")
     return st
 
 
@@ -995,6 +1001,7 @@ def restore_backup(req):
         if keep_client_host:
             st["settings"]["client_host"] = keep_client_host
     store.mutate(fn)
+    proxies.sync()
     engine.traffic.replace(b.get("traffic") or {})
     restarted = False
     if sc is not None:
@@ -1280,9 +1287,39 @@ def get_state(req):
         "lists": [{**_list_view(l), "refs": Store.list_refs(st, l["id"])} for l in st["lists"]],
         "sni": engine.sni_view(),
         "clients": clients,
+        "proxy_clients": [{**proxy_clients.public(c), "listening": config.DRY_RUN or c["id"] in proxies.listeners,
+                           "error": proxies.errors.get(c["id"])} for c in st.get("proxy_clients", [])],
         "events": engine.events[-40:][::-1],
         "country_codes": lists.COUNTRY_CODES,
     }
+
+
+# ---------------------------------------------------------------- прокси-клиенты
+def _proxy_save(body, uid=None):
+    try:
+        result = store.mutate(lambda st: proxy_clients.save(st, body, uid))
+    except ValueError as exc:
+        bad(str(exc))
+    proxies.sync()
+    return result
+
+
+@app.post("/api/proxy-clients")
+def add_proxy_client(req):
+    return _proxy_save(req.json())
+
+
+@app.put("/api/proxy-clients/{uid}")
+def edit_proxy_client(req, uid):
+    return _proxy_save(req.json(), uid)
+
+
+@app.delete("/api/proxy-clients/{uid}")
+def delete_proxy_client(req, uid):
+    if not store.mutate(lambda st: proxy_clients.delete(st, uid)):
+        bad("err.not_found", 404)
+    proxies.sync()
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------- upstreams
@@ -1503,6 +1540,8 @@ def del_upstream(req, uid):
         u = Store.upstream(st, uid)
         if not u:
             bad("err.not_found", 404)
+        if any(c.get("upstream") == uid for c in st.get("proxy_clients", [])):
+            bad("exit is used by a proxy client")
         target = "up:" + uid
         refs = Store.outbound_refs(st, target)
         if refs and repl is None:
@@ -2282,6 +2321,7 @@ def run():
                 break
             time.sleep(1)
         tls.start()
+    proxies.sync()
     srv = app.serve(config.PANEL_HOST, config.PANEL_PORT, tls=tls.context if tls.enabled else None)
     write_status()
     log.info("Panel: %s", panel_url())
@@ -2295,6 +2335,7 @@ def run():
     try:
         srv.serve_forever(poll_interval=0.5)
     finally:
+        proxies.stop()
         tls.stop_ev.set()
         engine.shutdown()
         log.info("Stopped")

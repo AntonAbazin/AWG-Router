@@ -519,7 +519,8 @@ bind.overview = () => {
 function serverMissing() {
   return S.target && S.target.exists === false;
 }
-function viewClients() {
+function viewClients() { return viewVpnClients() + proxySection(); }
+function viewVpnClients() {
   const head = `
     <div class="section-head">
       <div><h2>${esc(t("cl.title"))}</h2><p class="muted small">${esc(t("cl.subtitle"))}</p></div>
@@ -664,7 +665,54 @@ bind.clients = () => {
   if (add) add.onclick = addClient;
   $$("[data-goto]").forEach((b) => b.onclick = () => goTab(b.dataset.goto));
   $$("tr[data-pk]").forEach((tr) => tr.onclick = () => editClient(tr.dataset.pk));
+  const proxyAdd = $("#proxy-add");
+  if (proxyAdd) proxyAdd.onclick = () => editProxy();
+  $$("[data-proxy-edit]").forEach((b) => b.onclick = () => editProxy(b.dataset.proxyEdit));
 };
+
+function proxySection() {
+  const rows = (S.proxy_clients || []).map((p) => {
+    const out = S.upstreams.find((u) => u.id === p.upstream);
+    return `<tr><td><bdi>${esc(p.username)}</bdi></td><td>${esc(p.port)}</td>
+      <td>${esc(out ? out.name : "—")}</td><td>${esc(t(!p.enabled ? "px.disabled" : p.listening ? "px.enabled" : "st.error"))}${p.error ? `<div class="small">${esc(p.error)}</div>` : ""}</td>
+      <td><button class="btn sm" data-proxy-edit="${esc(p.id)}">${esc(t("px.edit"))}</button></td></tr>`;
+  }).join("");
+  return `<section class="section"><div class="section-head"><div><h2>${esc(t("px.title"))}</h2>
+    <p class="muted small">${esc(t("px.subtitle"))}</p></div>
+    <button class="btn primary" id="proxy-add">${esc(t("px.add"))}</button></div>
+    <div class="panel"><table class="table responsive"><thead><tr><th>${esc(t("px.login"))}</th>
+    <th>${esc(t("px.port"))}</th><th>${esc(t("px.exit"))}</th><th>${esc(t("px.status"))}</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table>${rows ? "" : `<p class="muted">${esc(t("px.empty"))}</p>`}</div></section>`;
+}
+
+function editProxy(id) {
+  const p = (S.proxy_clients || []).find((x) => x.id === id);
+  openModal(t(p ? "px.edit" : "px.add"), `
+    <label class="field"><span>${esc(t("px.login"))}</span><input id="px-login" value="${esc(p?.username || "")}" maxlength="64"></label>
+    <label class="field"><span>${esc(t("px.password"))}</span><input id="px-password" type="password" minlength="12" maxlength="256" autocomplete="new-password">
+      <span class="hint">${esc(t(p ? "px.password_keep" : "px.password_hint"))}</span></label>
+    <label class="field"><span>${esc(t("px.port"))}</span><input id="px-port" type="number" min="1024" max="65535" value="${esc(p?.port || 3128)}"></label>
+    <label class="field"><span>${esc(t("px.exit"))}</span><select id="px-exit">${S.upstreams.map((u) =>
+      `<option value="${esc(u.id)}" ${p?.upstream === u.id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}</select></label>
+    <label><input id="px-enabled" type="checkbox" ${!p || p.enabled ? "checked" : ""}> ${esc(t("px.enabled"))}</label>`,
+  `${p ? `<button class="btn danger" id="px-delete">${esc(t("px.delete"))}</button>` : ""}
+   <button class="btn" data-close>${esc(t("btn.cancel"))}</button><button class="btn primary" id="px-save">${esc(t("px.save"))}</button>`);
+  $("#px-save").onclick = async () => {
+    const button = $("#px-save"); button.disabled = true;
+    try {
+      const body = { username: $("#px-login").value.trim(), port: Number($("#px-port").value),
+        upstream: $("#px-exit").value, enabled: $("#px-enabled").checked };
+      if ($("#px-password").value) body.password = $("#px-password").value;
+      await api(p ? "PUT" : "POST", "proxy-clients" + (p ? "/" + encodeURIComponent(p.id) : ""), body);
+      $("#modal").close(); await refresh();
+    } catch (e) { toast(e.message, true); button.disabled = false; }
+  };
+  if (p) $("#px-delete").onclick = async () => {
+    if (!confirm(t("px.confirm_delete"))) return;
+    try { await api("DELETE", "proxy-clients/" + encodeURIComponent(p.id)); $("#modal").close(); await refresh(); }
+    catch (e) { toast(e.message, true); }
+  };
+}
 
 function goTab(name) {
   tab = name; history.replaceState(null, "", "#" + tab); render(); window.scrollTo(0, 0);

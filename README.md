@@ -17,6 +17,8 @@
 
 # AWG Router
 
+The **Clients → Proxies** section creates HTTPS proxy accounts tied to one exit. HTTP and HTTPS destinations are supported; HTTP request bodies require Content-Length and are limited to 64 MiB. Use a verified HTTPS proxy connection; for Python requests see [proxy client setup](docs/HTTPS_PROXY.md).
+
 A web panel for **AmneziaWG**: users, tunnel settings, cascade routing and individual routing for each client in one place.
 
 It works with the server that the AmneziaVPN app installs (the `amnezia-awg2` Docker container), or installs its own AmneziaWG server — in a Docker container or on the host. Protocol support goes up to **AmneziaWG 3.1**.
