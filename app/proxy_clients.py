@@ -39,8 +39,10 @@ def save(state: dict, body: dict, uid: str | None = None) -> dict:
         raise ValueError("invalid proxy protocol")
     if not isinstance(upstream, str) or not any(u["id"] == upstream for u in state["upstreams"]):
         raise ValueError("unknown exit")
-    if any(c is not old and (c["port"] == port or c["username"] == name) for c in clients):
-        raise ValueError("username or port already in use")
+    if any(c is not old and c["username"] == name for c in clients):
+        raise ValueError("px.username_taken")
+    if any(c is not old and c["port"] == port for c in clients):
+        raise ValueError("px.port_taken")
     if not old and not password:
         raise ValueError("password required")
     record = proxy_auth.password_record(password) if password else old["password"]

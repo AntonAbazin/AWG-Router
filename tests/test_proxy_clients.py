@@ -25,6 +25,13 @@ class ProxyClientSettingsTest(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 proxy_clients.save(self.state, {**self.input, **changes})
 
+    def test_duplicate_port_and_username_report_distinct_errors(self):
+        proxy_clients.save(self.state, self.input)
+        with self.assertRaisesRegex(ValueError, r"^px\.port_taken$"):
+            proxy_clients.save(self.state, {**self.input, "username": "another"})
+        with self.assertRaisesRegex(ValueError, r"^px\.username_taken$"):
+            proxy_clients.save(self.state, {**self.input, "port": 3129})
+
     def test_update_keeps_hash_until_password_changed(self):
         entry = proxy_clients.save(self.state, self.input)
         before = self.state["proxy_clients"][0]["password"]

@@ -64,6 +64,11 @@ class I18nTest(unittest.TestCase):
                for lang in LANGS if self.d[lang].get(k) is not None and ph(self.d[lang][k]) != ph(v)]
         self.assertEqual(bad, [])
 
+    def test_proxy_protocol_labels_match_the_language(self):
+        expected = {"ru": "Тип", "en": "Type", "zh": "类型", "fa": "نوع"}
+        for lang, label in expected.items():
+            self.assertEqual(self.d[lang]["px.protocol"], label)
+
     def test_keys_used_in_code_exist(self):
         """Ключи из t("…") / th("…") в браузере и из Msg("…") / bad("…") на сервере."""
         keys = set(self.d["en"])

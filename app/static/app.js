@@ -667,21 +667,24 @@ bind.clients = () => {
   $$("tr[data-pk]").forEach((tr) => tr.onclick = () => editClient(tr.dataset.pk));
   const proxyAdd = $("#proxy-add");
   if (proxyAdd) proxyAdd.onclick = () => editProxy();
-  $$("[data-proxy-edit]").forEach((b) => b.onclick = () => editProxy(b.dataset.proxyEdit));
+  $$("tr[data-proxy-edit]").forEach((tr) => tr.onclick = () => editProxy(tr.dataset.proxyEdit));
 };
 
 function proxySection() {
   const rows = (S.proxy_clients || []).map((p) => {
-    const out = S.upstreams.find((u) => u.id === p.upstream);
-    return `<tr><td><bdi>${esc(p.username)}</bdi></td><td>${esc((p.protocol || "https").toUpperCase())}</td><td>${esc(p.port)}</td>
-      <td>${esc(out ? out.name : "—")}</td><td>${esc(t(!p.enabled ? "px.disabled" : p.listening ? "px.enabled" : "st.error"))}${p.error ? `<div class="small">${esc(p.error)}</div>` : ""}</td>
-      <td><button class="btn sm" data-proxy-edit="${esc(p.id)}">${esc(t("px.edit"))}</button></td></tr>`;
+    const status = !p.enabled ? "px.status_off" : p.listening ? "px.status_on" : "st.error";
+    const dot = !p.enabled ? "" : p.listening ? "ok" : "bad";
+    return `<tr class="click ${p.enabled ? "" : "row-off"}" data-proxy-edit="${esc(p.id)}">
+      <td><span class="client-name"><bdi>${esc(p.username)}</bdi></span></td>
+      <td data-m="sub">${esc((p.protocol || "https").toUpperCase())}</td><td data-m="sub">${esc(p.port)}</td>
+      <td data-m="sub"><span class="state"><span class="dot ${dot}"></span>${esc(t(status))}</span>${p.error ? `<div class="small">${esc(p.error)}</div>` : ""}</td>
+      <td data-m="right">${outChip("up:" + p.upstream)}</td></tr>`;
   }).join("");
   return `<section class="section"><div class="section-head"><div><h2>${esc(t("px.title"))}</h2>
     <p class="muted small">${esc(t("px.subtitle"))}</p></div>
     <button class="btn primary" id="proxy-add">${esc(t("px.add"))}</button></div>
     <div class="panel"><table class="table responsive"><thead><tr><th>${esc(t("px.login"))}</th>
-    <th>${esc(t("px.protocol"))}</th><th>${esc(t("px.port"))}</th><th>${esc(t("px.exit"))}</th><th>${esc(t("px.status"))}</th><th></th></tr></thead>
+    <th>${esc(t("px.protocol"))}</th><th>${esc(t("px.port"))}</th><th>${esc(t("px.status"))}</th><th>${esc(t("px.exit"))}</th></tr></thead>
     <tbody>${rows}</tbody></table>${rows ? "" : `<p class="muted">${esc(t("px.empty"))}</p>`}</div></section>`;
 }
 
