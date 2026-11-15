@@ -673,7 +673,7 @@ bind.clients = () => {
 function proxySection() {
   const rows = (S.proxy_clients || []).map((p) => {
     const out = S.upstreams.find((u) => u.id === p.upstream);
-    return `<tr><td><bdi>${esc(p.username)}</bdi></td><td>${esc(p.port)}</td>
+    return `<tr><td><bdi>${esc(p.username)}</bdi></td><td>${esc((p.protocol || "https").toUpperCase())}</td><td>${esc(p.port)}</td>
       <td>${esc(out ? out.name : "—")}</td><td>${esc(t(!p.enabled ? "px.disabled" : p.listening ? "px.enabled" : "st.error"))}${p.error ? `<div class="small">${esc(p.error)}</div>` : ""}</td>
       <td><button class="btn sm" data-proxy-edit="${esc(p.id)}">${esc(t("px.edit"))}</button></td></tr>`;
   }).join("");
@@ -681,7 +681,7 @@ function proxySection() {
     <p class="muted small">${esc(t("px.subtitle"))}</p></div>
     <button class="btn primary" id="proxy-add">${esc(t("px.add"))}</button></div>
     <div class="panel"><table class="table responsive"><thead><tr><th>${esc(t("px.login"))}</th>
-    <th>${esc(t("px.port"))}</th><th>${esc(t("px.exit"))}</th><th>${esc(t("px.status"))}</th><th></th></tr></thead>
+    <th>${esc(t("px.protocol"))}</th><th>${esc(t("px.port"))}</th><th>${esc(t("px.exit"))}</th><th>${esc(t("px.status"))}</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table>${rows ? "" : `<p class="muted">${esc(t("px.empty"))}</p>`}</div></section>`;
 }
 
@@ -691,16 +691,23 @@ function editProxy(id) {
     <label class="field"><span>${esc(t("px.login"))}</span><input id="px-login" value="${esc(p?.username || "")}" maxlength="64"></label>
     <label class="field"><span>${esc(t("px.password"))}</span><input id="px-password" type="password" minlength="12" maxlength="256" autocomplete="new-password">
       <span class="hint">${esc(t(p ? "px.password_keep" : "px.password_hint"))}</span></label>
+    <label class="field"><span>${esc(t("px.protocol"))}</span><select id="px-protocol">
+      <option value="https" ${p?.protocol !== "http" ? "selected" : ""}>HTTPS</option>
+      <option value="http" ${p?.protocol === "http" ? "selected" : ""}>HTTP</option></select>
+      <span class="hint" id="px-http-warning">${esc(t("px.http_warning"))}</span></label>
     <label class="field"><span>${esc(t("px.port"))}</span><input id="px-port" type="number" min="1024" max="65535" value="${esc(p?.port || 3128)}"></label>
     <label class="field"><span>${esc(t("px.exit"))}</span><select id="px-exit">${S.upstreams.map((u) =>
       `<option value="${esc(u.id)}" ${p?.upstream === u.id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}</select></label>
     <label><input id="px-enabled" type="checkbox" ${!p || p.enabled ? "checked" : ""}> ${esc(t("px.enabled"))}</label>`,
   `${p ? `<button class="btn danger" id="px-delete">${esc(t("px.delete"))}</button>` : ""}
    <button class="btn" data-close>${esc(t("btn.cancel"))}</button><button class="btn primary" id="px-save">${esc(t("px.save"))}</button>`);
+  const showProxyWarning = () => { $("#px-http-warning").hidden = $("#px-protocol").value !== "http"; };
+  $("#px-protocol").onchange = showProxyWarning;
+  showProxyWarning();
   $("#px-save").onclick = async () => {
     const button = $("#px-save"); button.disabled = true;
     try {
-      const body = { username: $("#px-login").value.trim(), port: Number($("#px-port").value),
+      const body = { username: $("#px-login").value.trim(), protocol: $("#px-protocol").value, port: Number($("#px-port").value),
         upstream: $("#px-exit").value, enabled: $("#px-enabled").checked };
       if ($("#px-password").value) body.password = $("#px-password").value;
       await api(p ? "PUT" : "POST", "proxy-clients" + (p ? "/" + encodeURIComponent(p.id) : ""), body);

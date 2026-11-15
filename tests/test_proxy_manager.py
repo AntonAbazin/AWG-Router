@@ -70,6 +70,22 @@ class ManagerTest(unittest.TestCase):
         server.server_close.assert_called_once()
         self.assertFalse(self.manager.listeners)
 
+    def test_protocol_change_restarts_listener_and_closes_active_connections(self):
+        server = MagicMock()
+        server.proxy_protocol = "https"
+        self.manager.listeners["px1"] = (server, 3128)
+        self.state["proxy_clients"][0]["protocol"] = "http"
+        self.state["proxy_clients"][0]["password"] = {"hash": "test"}
+        replacement = MagicMock()
+        with patch("app.proxy_manager.config.DRY_RUN", False), \
+             patch("app.proxy_manager.proxy_listener.create", return_value=replacement) as create, \
+             patch("app.proxy_manager.threading.Thread"):
+            self.manager.sync()
+        server.close_active.assert_called_once()
+        server.shutdown.assert_called_once()
+        self.assertIsNone(create.call_args.args[1])
+        self.assertEqual(replacement.proxy_protocol, "http")
+
 
 if __name__ == "__main__":
     unittest.main()

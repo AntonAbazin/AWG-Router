@@ -44,6 +44,28 @@ class ProxyClientSettingsTest(unittest.TestCase):
             proxy_clients.restore(restored, saved)
         self.assertNotEqual(restored["proxy_clients"], saved)
 
+    def test_protocol_defaults_to_https_and_legacy_backups_remain_https(self):
+        entry = proxy_clients.save(self.state, self.input)
+        self.assertEqual(entry["protocol"], "https")
+        legacy = copy.deepcopy(self.state["proxy_clients"])
+        del legacy[0]["protocol"]
+        restored = {"upstreams": [{"id": "u1"}]}
+        proxy_clients.restore(restored, legacy)
+        self.assertEqual(proxy_clients.public(restored["proxy_clients"][0])["protocol"], "https")
+        self.assertEqual(proxy_clients.save(restored, {"enabled": False}, entry["id"])["protocol"], "https")
+
+    def test_http_protocol_persists_and_invalid_protocol_is_rejected(self):
+        entry = proxy_clients.save(self.state, {**self.input, "protocol": "http"})
+        self.assertEqual(entry["protocol"], "http")
+        restored = {"upstreams": [{"id": "u1"}]}
+        proxy_clients.restore(restored, copy.deepcopy(self.state["proxy_clients"]))
+        self.assertEqual(restored["proxy_clients"][0]["protocol"], "http")
+        with self.assertRaises(ValueError):
+            proxy_clients.save(self.state, {"protocol": "socks5"}, entry["id"])
+        restored["proxy_clients"][0]["protocol"] = "invalid"
+        with self.assertRaises(ValueError):
+            proxy_clients.restore({"upstreams": [{"id": "u1"}]}, restored["proxy_clients"])
+
 
 if __name__ == "__main__":
     unittest.main()

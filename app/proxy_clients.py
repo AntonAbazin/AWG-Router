@@ -12,7 +12,8 @@ MAX_CLIENTS = 64
 
 def public(client: dict) -> dict:
     """Пароль и его хеш никогда не попадают в ответ панели."""
-    return {k: client[k] for k in ("id", "username", "port", "upstream", "enabled")}
+    return {**{k: client[k] for k in ("id", "username", "port", "upstream", "enabled")},
+            "protocol": client.get("protocol", "https")}
 
 
 def save(state: dict, body: dict, uid: str | None = None) -> dict:
@@ -26,6 +27,7 @@ def save(state: dict, body: dict, uid: str | None = None) -> dict:
     port = body.get("port", old["port"] if old else None)
     upstream = body.get("upstream", old["upstream"] if old else "")
     enabled = body.get("enabled", old["enabled"] if old else True)
+    protocol = body.get("protocol", old.get("protocol", "https") if old else "https")
     password = body.get("password")
     if not isinstance(name, str) or not USERNAME.fullmatch(name):
         raise ValueError("invalid username")
@@ -33,6 +35,8 @@ def save(state: dict, body: dict, uid: str | None = None) -> dict:
         raise ValueError("invalid port")
     if not isinstance(enabled, bool):
         raise ValueError("invalid enabled flag")
+    if protocol not in ("http", "https"):
+        raise ValueError("invalid proxy protocol")
     if not isinstance(upstream, str) or not any(u["id"] == upstream for u in state["upstreams"]):
         raise ValueError("unknown exit")
     if any(c is not old and (c["port"] == port or c["username"] == name) for c in clients):
@@ -41,7 +45,7 @@ def save(state: dict, body: dict, uid: str | None = None) -> dict:
         raise ValueError("password required")
     record = proxy_auth.password_record(password) if password else old["password"]
     entry = {"id": uid or new_id("px"), "username": name, "port": port,
-             "upstream": upstream, "enabled": enabled, "password": record}
+             "upstream": upstream, "enabled": enabled, "protocol": protocol, "password": record}
     if old:
         clients[clients.index(old)] = entry
     else:
@@ -66,6 +70,9 @@ def restore(state: dict, entries) -> None:
             raise ValueError("invalid proxy client")
         uid, name, port = entry.get("id"), entry.get("username"), entry.get("port")
         upstream, enabled, pw = entry.get("upstream"), entry.get("enabled"), entry.get("password")
+        protocol = entry.get("protocol", "https")
+        if protocol not in ("http", "https"):
+            raise ValueError("invalid proxy protocol")
         if not isinstance(uid, str) or not ID_RE.fullmatch(uid) or not isinstance(name, str) or not USERNAME.fullmatch(name):
             raise ValueError("invalid proxy identity")
         if not isinstance(port, int) or isinstance(port, bool) or not 1024 <= port <= 65535 or not isinstance(enabled, bool):
@@ -79,5 +86,5 @@ def restore(state: dict, entries) -> None:
         if any(c["id"] == uid or c["username"] == name or c["port"] == port for c in restored):
             raise ValueError("duplicate proxy client")
         restored.append({"id": uid, "username": name, "port": port, "upstream": upstream,
-                         "enabled": enabled, "password": dict(pw)})
+                         "enabled": enabled, "protocol": protocol, "password": dict(pw)})
     state["proxy_clients"] = restored

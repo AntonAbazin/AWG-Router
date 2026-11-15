@@ -183,5 +183,14 @@ class ProxyListenerTest(unittest.TestCase):
                 pass
 
 
+class PlainHttpProxyListenerTest(ProxyListenerTest):
+    def setUp(self):
+        super().setUp()
+        self.server.context = None
+
+    def client(self):
+        return socket.create_connection(self.server.server_address)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,10 @@
 # HTTPS proxy clients
 
+Clients can also be configured as HTTP proxies for applications that do not
+support TLS to the proxy. HTTP sends proxy credentials without encryption: use
+it only over a protected VPN or SSH tunnel. HTTPS destinations remain encrypted
+end to end. Existing proxy clients default to HTTPS.
+
 The proxy URL uses `https://`, so TLS protects the proxy credentials in transit.
 Each proxy client has its own username, password, port and exit. A disabled client
 cannot open a new connection and active connections are closed. If the selected

@@ -1,4 +1,4 @@
-"""TLS-приёмник CONNECT для одного прокси-клиента.
+"""HTTP(S)-приёмник для одного прокси-клиента.
 
 Запуск и остановка управляются панелью; исходящий сокет создаёт proxy_bridge.
 """
@@ -148,6 +148,9 @@ class _Handler(socketserver.BaseRequestHandler):
     def handle(self):
         self.request.settimeout(HEADER_TIMEOUT)
         try:
+            if self.server.context is None:
+                self._handle_request(self.request)
+                return
             ctx = self.server.context()
             if ctx is None:
                 return
@@ -156,14 +159,14 @@ class _Handler(socketserver.BaseRequestHandler):
                     self.server.active.discard(self.request)
                     self.server.active.add(client)
                 try:
-                    self._handle_tls(client)
+                    self._handle_request(client)
                 finally:
                     with self.server.active_lock:
                         self.server.active.discard(client)
         except (OSError, ssl.SSLError, ValueError):
             return
 
-    def _handle_tls(self, client):
+    def _handle_request(self, client):
         try:
             head = _head(client)
             tunnel = head.startswith(b"CONNECT ")

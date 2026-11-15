@@ -1,4 +1,4 @@
-"""Управление TLS-приёмниками прокси-клиентов."""
+"""Управление HTTP и HTTPS приёмниками прокси-клиентов."""
 from __future__ import annotations
 
 import threading
@@ -61,7 +61,8 @@ class Manager:
             wanted = {c["id"]: c for c in state.get("proxy_clients", []) if c["enabled"]}
             for uid in list(self.listeners):
                 server, port = self.listeners[uid]
-                if uid not in wanted or wanted[uid]["port"] != port:
+                if (uid not in wanted or wanted[uid]["port"] != port
+                        or wanted[uid].get("protocol", "https") != getattr(server, "proxy_protocol", "https")):
                     server.close_active()
                     server.shutdown()
                     server.server_close()
@@ -76,7 +77,9 @@ class Manager:
                         server.proxy_signature = signature
                     continue
                 try:
-                    server = proxy_listener.create(("0.0.0.0", client["port"]), self.tls.context,
+                    protocol = client.get("protocol", "https")
+                    context = self.tls.context if protocol == "https" else None
+                    server = proxy_listener.create(("0.0.0.0", client["port"]), context,
                                                    lambda u=uid: self._credentials(u),
                                                    lambda host, port, u=uid: self._connect(u, host, port),
                                                    self._account)
@@ -84,6 +87,7 @@ class Manager:
                     self.errors[uid] = str(exc)
                     continue
                 self.listeners[uid] = (server, client["port"])
+                server.proxy_protocol = protocol
                 server.proxy_signature = (client["username"], client["password"]["hash"], client["upstream"])
                 self.errors.pop(uid, None)
                 threading.Thread(target=server.serve_forever, name="proxy-" + uid, daemon=True).start()
